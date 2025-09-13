@@ -15,7 +15,13 @@ from pptx import Presentation
 import shutil
 import unicodedata
 
-st.set_page_config(page_title="Sheet Cheat en PDF", page_icon="📘", layout="centered")
+st.set_page_config(
+    page_title="Sheet Cheat en PDF",
+    page_icon="✏️",
+    layout="centered",
+    initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
+)
+
 
 # ------------------ CONFIG ------------------
 API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
