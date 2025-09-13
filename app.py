@@ -280,7 +280,6 @@ def compile_pdf(latex_code: str, engine_preference=("pdflatex", "tectonic")):
         )
         return None
 
-# ------------------ INTERFAZ ------------------
 # ------------------ INTERFAZ (SIDEBAR OCULTA) ------------------
 # Mantiene el código pero nunca lo ejecuta (no aparece en UI)
 if False:
@@ -305,6 +304,8 @@ if False:
 
 # Como la sidebar está oculta, forzamos un valor vacío:
 sidebar_topic = ""
+
+mode = st.radio("Entrada:", ["Subir imagen", "Escribir texto", "Subir PDF", "Subir PPTX"], horizontal=True)
 
 if mode == "Subir imagen":
     up = st.file_uploader("📤 Sube una imagen (JPG/PNG)", type=["jpg","jpeg","png"])
