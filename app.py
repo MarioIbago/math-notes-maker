@@ -2,7 +2,6 @@
 # ===========================================================
 
 import streamlit as st
-from openai import OpenAI
 from PIL import Image
 from io import BytesIO
 import base64
@@ -14,7 +13,7 @@ import PyPDF2
 from pptx import Presentation
 import unicodedata
 
-# ------------------ PÁGINA ------------------
+# =================== PÁGINA ===================
 st.set_page_config(
     page_title="Sheet Cheat Maker — by Mario Ibarra",
     page_icon="📘",
@@ -26,20 +25,38 @@ st.title("📘 Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF (by Mario Ibar
 st.markdown("---")
 st.markdown("**Imagen / Texto / PDF / PPTX ➜ Sheat Cheat en PDF (by Mario Ibarra)** - Desarrollado por [MarioIbago](https://github.com/MarioIbago) | Usando GPT-4 Vision API")
 
-# ------------------ CONFIG ------------------
-# Toma tu API key de Streamlit Secrets (no la hardcodees).
+# ============ OPENAI SDK SHIM (v1 / legacy) ============
+SDK_MODE = None
+client = None
+try:
+    from openai import OpenAI  # SDK nuevo (>=1.0)
+    SDK_MODE = "v1"
+except ModuleNotFoundError:
+    SDK_MODE = "legacy"
+except Exception:
+    SDK_MODE = "legacy"
+
 API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 if not API_KEY:
     st.warning("⚠️ Falta OPENAI_API_KEY en .streamlit/secrets.toml o en Secrets de Streamlit Cloud.")
-client = OpenAI(api_key=API_KEY) if API_KEY else None
 
-# Tema del documento
-topic = st.text_input("🧾 Tema del cheat sheet", value="Tema")
+if SDK_MODE == "v1":
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=API_KEY)
+    except Exception as e:
+        st.error(f"No se pudo inicializar SDK v1 de OpenAI: {e}")
+        SDK_MODE = "legacy"
 
-# ¿Compilar PDF con pdflatex? (en Streamlit Cloud normalmente no hay TeX Live)
-compile_pdf_toggle = st.checkbox("Compilar PDF con pdflatex (requiere TeX Live instalado)", value=True)
+if SDK_MODE == "legacy":
+    try:
+        import openai  # SDK antiguo (<1.0)
+        openai.api_key = API_KEY
+    except Exception as e:
+        st.error(f"No se pudo importar SDK legacy de OpenAI: {e}")
+        openai = None
 
-# ------------------ PROMPT ------------------
+# ================ PROMPT =================
 PROMPT_CHEATSHEET = (
     "Actúas como un asistente experto en hojas de trucos (cheat sheets). "
     "Devuelve EXCLUSIVAMENTE un DOCUMENTO LaTeX completo y compilable. "
@@ -73,11 +90,10 @@ PROMPT_CHEATSHEET = (
 
     "ENTRADA: recibirás texto o extracto de imagen; debes destilar todas las fórmulas relevantes, explicarlas brevemente, "
     "y cerrar con un tcolorbox de fórmulas esenciales bien formateadas.\n\n"
-
     "MUY IMPORTANTE: usa exactamente este <tema> en \\title: 'Sheet Cheat: {tema_exacto}'. "
 ).replace("{tema_exacto}", "{topic_placeholder}")
 
-# ------------------ UTILS -------------------
+# =============== UTILS ==================
 def _image_to_base64(uploaded_file):
     buf = BytesIO()
     img = Image.open(uploaded_file).convert("RGB")
@@ -116,7 +132,6 @@ _TITLESec_PAT = re.compile(r'\\usepackage\\s*\\{?\\s*titlesec\\s*\\}?', re.I)
 _TITLEFORMAT_PAT = re.compile(r'\\title(?:format|spacing)\\*?[^\\]*', re.I)
 
 def sanitize_latex(content: str) -> str:
-    """Limpia envolturas de Markdown, elimina 'titlesec' y normaliza saltos de línea."""
     lines = []
     for line in content.splitlines():
         s = line.strip()
@@ -135,7 +150,6 @@ def sanitize_latex(content: str) -> str:
     return txt.strip()
 
 def ensure_full_document(latex_code: str) -> str:
-    """Asegura un documento LaTeX completo y mínimo, aunque el modelo devuelva solo el cuerpo."""
     pre = (
         "\\documentclass[11pt]{article}\n"
         "\\usepackage[spanish, es-tabla]{babel}\n"
@@ -157,12 +171,10 @@ def ensure_full_document(latex_code: str) -> str:
     return pre + "\n\\begin{document}\n" + latex_code + "\n\\end{document}\n"
 
 def enforce_title(latex_code: str, topic: str) -> str:
-    """Fuerza \\title{Sheet Cheat: <tema>} + \\maketitle si faltan."""
     desired = f"\\title{{Sheet Cheat: {topic}}}"
     if re.search(r'\\title\{', latex_code):
         latex_code = re.sub(r'\\title\{.*?\}', desired, latex_code, count=1, flags=re.S)
     else:
-        # Inyecta tras \begin{document}
         if "\\begin{document}" in latex_code:
             latex_code = latex_code.replace(
                 "\\begin{document}",
@@ -171,13 +183,11 @@ def enforce_title(latex_code: str, topic: str) -> str:
             )
         else:
             latex_code = desired + "\n\\author{}\n\\date{}\n\\maketitle\n" + latex_code
-    # Asegura \maketitle
     if "\\maketitle" not in latex_code:
         latex_code = latex_code.replace(desired, desired + "\n\\author{}\n\\date{}\n\\maketitle", 1)
     return latex_code
 
 def inject_footer(latex_code: str) -> str:
-    """Inserta un pie de página simple y pequeño antes de \\end{document}."""
     footer = (
         "\n\\vspace{1em}\n"
         "\\begin{center}\\scriptsize "
@@ -188,50 +198,72 @@ def inject_footer(latex_code: str) -> str:
         return latex_code.replace("\\end{document}", footer + "\\end{document}")
     return latex_code + footer
 
-def call_openai(prompt, notes_text=None, image_b64=None):
-    if not client:
-        st.error("No hay cliente OpenAI (falta API key).")
+def _slugify(text: str) -> str:
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    text = re.sub(r'[^a-zA-Z0-9_-]+', '_', text).strip('_')
+    return (text or "Tema").lower()
+
+# ============== OPENAI CALL =================
+def call_openai(prompt, notes_text=None, image_b64=None, topic="Tema"):
+    if not API_KEY:
+        st.error("No hay API key configurada.")
         return ""
-    # Inserta el tema en el prompt
     prompt_final = prompt.replace("{topic_placeholder}", topic.strip() or "Tema")
     try:
-        if image_b64:
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                max_tokens=3000,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt_final + "\n\nTexto de entrada: (extraído de imagen)"},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
-                    ]
-                }]
-            )
+        if SDK_MODE == "v1" and client is not None:
+            if image_b64:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    max_tokens=3000,
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_final + "\n\nTexto de entrada: (extraído de imagen)"},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+                        ]
+                    }]
+                )
+            else:
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    max_tokens=3000,
+                    messages=[{"role": "user", "content": prompt_final + f"\n\nTexto de entrada:\n{notes_text or ''}"}]
+                )
+            content = (resp.choices[0].message.content or "").strip()
         else:
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                max_tokens=3000,
-                messages=[{"role": "user", "content": prompt_final + f"\n\nTexto de entrada:\n{notes_text or ''}"}]
-            )
-        content = (resp.choices[0].message.content or "").strip()
+            if 'openai' not in globals() or openai is None:
+                st.error("No se pudo inicializar OpenAI (SDK legacy).")
+                return ""
+            if image_b64:
+                resp = openai.ChatCompletion.create(
+                    model="gpt-4o-mini",
+                    max_tokens=3000,
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_final + "\n\nTexto de entrada: (extraído de imagen)"},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+                        ]
+                    }]
+                )
+            else:
+                resp = openai.ChatCompletion.create(
+                    model="gpt-4o-mini",
+                    max_tokens=3000,
+                    messages=[{"role": "user", "content": prompt_final + f"\n\nTexto de entrada:\n{notes_text or ''}"}]
+                )
+            content = (resp["choices"][0]["message"]["content"] or "").strip()
     except Exception as e:
         st.error(f"Error al llamar a OpenAI: {e}")
         return ""
 
-    # Saneamos y reforzamos documento
     content = sanitize_latex(content)
     content = ensure_full_document(content)
     content = enforce_title(content, topic.strip() or "Tema")
     content = inject_footer(content)
     return content
 
-def _slugify(text: str) -> str:
-    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
-    text = re.sub(r'[^a-zA-Z0-9_-]+', '_', text).strip('_')
-    return (text or "Tema").lower()
-
 def compile_pdf_bytes(latex_code: str):
-    """Compila con pdflatex en un tmpdir; devuelve bytes o None. No falla la app si no hay pdflatex."""
     if not latex_code.strip():
         st.error("No hay código LaTeX para compilar.")
         return None
@@ -240,8 +272,6 @@ def compile_pdf_bytes(latex_code: str):
             tex_path = os.path.join(tmpdir, "cheat_sheat.tex")
             with open(tex_path, "w", encoding="utf-8") as f:
                 f.write(latex_code)
-
-            # Corre dos veces para referencias limpias
             for _ in range(2):
                 result = subprocess.run(
                     ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "cheat_sheat.tex"],
@@ -250,29 +280,29 @@ def compile_pdf_bytes(latex_code: str):
                     stderr=subprocess.PIPE
                 )
                 if result.returncode != 0:
-                    log_path = os.path.join(tmpdir, "cheat_sheat.log")
-                    stdout = result.stdout.decode(errors="ignore")
-                    stderr = result.stderr.decode(errors="ignore")
                     logtxt = ""
+                    log_path = os.path.join(tmpdir, "cheat_sheat.log")
                     if os.path.exists(log_path):
                         with open(log_path, "r", encoding="utf-8", errors="ignore") as logf:
                             logtxt = logf.read()
-                    st.text_area("❌ Error en LaTeX (log)", logtxt or stdout or stderr, height=360)
+                    else:
+                        logtxt = result.stdout.decode(errors="ignore") + "\n" + result.stderr.decode(errors="ignore")
+                    st.text_area("❌ Error en LaTeX (log)", logtxt, height=360)
                     return None
-
             pdf_path = os.path.join(tmpdir, "cheat_sheat.pdf")
             if os.path.exists(pdf_path):
                 with open(pdf_path, "rb") as fpdf:
                     return fpdf.read()
-            else:
-                st.error("❌ No se encontró el PDF tras compilar.")
-                return None
+            st.error("❌ No se encontró el PDF tras compilar.")
+            return None
     except FileNotFoundError:
-        # pdflatex no instalado
         st.info("ℹ️ No se encontró `pdflatex` en el sistema. Descarga el .tex o instala TeX Live para compilar.")
         return None
 
-# ------------------ INTERFAZ ------------------
+# ============== UI ==================
+topic = st.text_input("🧾 Tema del cheat sheet", value="Tema")
+compile_pdf_toggle = st.checkbox("Compilar PDF con pdflatex (requiere TeX Live instalado)", value=False)
+
 mode = st.radio("Entrada:", ["Subir imagen", "Escribir texto", "Subir PDF", "Subir PPTX"], horizontal=True)
 notes_text = ""
 image_b64 = None
@@ -282,16 +312,13 @@ if mode == "Subir imagen":
     if up is not None:
         st.image(up, caption="Imagen cargada", width=300)
         image_b64 = _image_to_base64(up)
-
 elif mode == "Escribir texto":
     notes_text = st.text_area("✍️ Escribe o pega tus notas", height=220)
-
 elif mode == "Subir PDF":
     up = st.file_uploader("📤 Sube un PDF", type=["pdf"])
     if up is not None:
         notes_text = extract_text_from_pdf(up)
         st.text_area("📄 Texto extraído del PDF", notes_text, height=220)
-
 elif mode == "Subir PPTX":
     up = st.file_uploader("📤 Sube un PPTX", type=["pptx"])
     if up is not None:
@@ -299,14 +326,13 @@ elif mode == "Subir PPTX":
         st.text_area("📊 Texto extraído del PPTX", notes_text, height=220)
 
 if st.button("⚡ Generar Sheet Cheat", type="primary", use_container_width=True):
-    if not client:
+    if not API_KEY:
         st.stop()
-
     st.info("⏳ Generando LaTeX con GPT...")
     if image_b64:
-        latex_code = call_openai(PROMPT_CHEATSHEET, image_b64=image_b64)
+        latex_code = call_openai(PROMPT_CHEATSHEET, image_b64=image_b64, topic=topic)
     else:
-        latex_code = call_openai(PROMPT_CHEATSHEET, notes_text=notes_text)
+        latex_code = call_openai(PROMPT_CHEATSHEET, notes_text=notes_text, topic=topic)
 
     if not latex_code:
         st.error("No se obtuvo contenido de LaTeX.")
@@ -337,4 +363,6 @@ if st.button("⚡ Generar Sheet Cheat", type="primary", use_container_width=True
                 use_container_width=True
             )
         else:
+            st.warning("No se generó el PDF. Puedes descargar el .tex y compilar localmente con TeX Live.")
+
             st.warning("No se generó el PDF. Puedes descargar el .tex y compilar localmente con TeX Live.")
