@@ -1,0 +1,43 @@
+name: Build LaTeX PDF
+
+on:
+  push:
+    paths:
+      - "**/*.tex"
+  workflow_dispatch:
+    inputs:
+      tex_path:
+        description: "Ruta del .tex a compilar (ej: docs/cheat_sheat_tema.tex)"
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar TeX Live mínimo
+        run: sudo apt-get update && sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended texlive-lang-spanish
+
+      - name: Compilar .tex (push)
+        if: github.event_name == 'push'
+        run: |
+          for f in $(git diff --name-only HEAD~1 HEAD | grep -E '\.tex$'); do
+            echo "Compilando $f"
+            pdflatex -interaction=nonstopmode -halt-on-error "$f" || exit 1
+            pdflatex -interaction=nonstopmode -halt-on-error "$f" || exit 1
+          done
+
+      - name: Compilar .tex (manual)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          f="${{ github.event.inputs.tex_path }}"
+          echo "Compilando $f"
+          pdflatex -interaction=nonstopmode -halt-on-error "$f" || exit 1
+          pdflatex -interaction=nonstopmode -halt-on-error "$f" || exit 1
+
+      - name: Subir PDFs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfs
+          path: "**/*.pdf"
