@@ -30,14 +30,15 @@ if not API_KEY:
 client = OpenAI(api_key=API_KEY)
 
 # ------------------ CABECERA ------------------
+
 st.markdown("""
-<div style="text-align: center; margin-top: -1rem; margin-bottom: 1.5rem;">
-  <div style="font-size:2.2rem;">📘</div>
-  <h1 style="margin-bottom:0; font-size:1.8rem; font-weight:800;">
-    Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF
+<div style="text-align: center; margin-top: -1rem; margin-bottom: 1.8rem;">
+  <div style="font-size:2.6rem;">📘</div>
+  <h1 style="margin-bottom:0; font-size:2.2rem; font-weight:800;">
+    Math To Note PDF
   </h1>
-  <p style="margin-top:0.3rem; font-size:0.95rem; color:gray;">
-    by Mario Ibarra · convierte tus apuntes en un PDF bonito
+  <p style="margin-top:0.4rem; font-size:1.05rem; color:gray;">
+    Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF
   </p>
 </div>
 """, unsafe_allow_html=True)
