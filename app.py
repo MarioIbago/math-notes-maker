@@ -22,9 +22,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
 )
 
-
 # ------------------ CONFIG ------------------
-API_KEY = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+API_KEY = st.secrets.get("OPENAI_OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 if not API_KEY:
     st.warning("⚠️ Configura tu OPENAI_API_KEY en Secrets (Streamlit) o como variable de entorno.")
 client = OpenAI(api_key=API_KEY)
@@ -43,21 +42,17 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-
 # ------------------ PROMPT (más extenso) ------------------
 PROMPT_CHEATSHEET = (
     "Actúas como un asistente experto en hojas de trucos (cheat sheets). "
     "Devuelve EXCLUSIVAMENTE un DOCUMENTO LaTeX completo y compilable. "
     "FORMATO OBLIGATORIO DE SALIDA: la PRIMERA línea debe ser exactamente 'COOR-BO-ZY'; "
     "a partir de la SEGUNDA línea comienza el documento LaTeX, SIN bloques de ``` ni texto fuera del LaTeX.\n\n"
-
     "PREÁMBULO (descríbelo, no pegues este texto): clase 'article' 11pt; español con babel; UTF-8 y T1; Latin Modern; "
     "amsmath, amssymb, amsthm, mathtools; geometry A4 (márgenes ~2–2.5 cm); enumitem; xcolor; tcolorbox sobrio; "
     "microtype; hyperref; graphicx. NO uses 'titlesec' ni \\titleformat/\\titlespacing; evita TikZ y paquetes no listados; "
     "nada de \\makeatletter, \\input, \\write18.\n\n"
-
     "INFIERE el <tema> a partir de la entrada (texto/imagen). Si el tema no está claro, elige el más probable y sé consistente.\n\n"
-
     "ESTRUCTURA EXACTA (con foco en FÓRMULAS, EXPLICACIONES y USO):\n"
     "1) Portada simple: \\title{Sheet Cheat: <tema>}, \\author{}, \\date{}, \\maketitle.\n"
     "2) \\section{Introducción}: 3–6 líneas (qué es, para qué sirve, contexto típico, supuestos básicos).\n"
@@ -76,13 +71,13 @@ PROMPT_CHEATSHEET = (
     "10) \\section{Errores comunes y buenas prácticas}: lista breve de 4–6 bullets (p. ej. signos, dominios, redondeos, unidades, orden de operaciones).\n"
     "11) \\section{Resumen de fórmulas esenciales}: tcolorbox con 5–10 fórmulas \"de oro\" en display; bajo cada una, "
     "   una nota de 1 línea (dominio/uso típico/alerta).\n\n"
+    "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago).\n"
 
     "ESTILO Y CALIDAD:\n"
     "• Español claro y conciso; objetivo 1–2 páginas. "
     "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago). "
     "• Matemáticas limpias: \\frac, potencias, sub/superscripts; alinea ecuaciones cuando ayude a la lectura. "
     "• Evita adornos innecesarios, imágenes, comentarios LaTeX o paquetes extra. Balancea todos los entornos; debe compilar en pdflatex.\n\n"
-
     "ENTRADA: recibirás texto o extracto de imagen; destila todas las fórmulas relevantes, explica brevemente cada bloque, "
     "añade notas de uso/errores comunes y cierra con un tcolorbox de fórmulas esenciales bien formateadas."
 )
@@ -214,7 +209,7 @@ def infer_topic(latex_code: str, notes_text: str, sidebar_topic: str) -> str:
         if t:
             return t
     if notes_text:
-        first = notes_text.strip().splitlines()[0]
+        first = notes_text.strip().splitlines()[0] if notes_text.strip() else ""
         if first and len(first) <= 80:
             return first.strip()
     return "Tema"
@@ -318,6 +313,12 @@ if False:
 # Como la sidebar está oculta, forzamos un valor vacío:
 sidebar_topic = ""
 
+# ----------- Inicialización y entrada (⭐ evita NameError) -----------
+# Inicializa variables SIEMPRE para todos los modos
+notes_text = ""
+image_b64 = None
+up = None
+
 mode = st.radio("Entrada:", ["Subir imagen", "Escribir texto", "Subir PDF", "Subir PPTX"], horizontal=True)
 
 if mode == "Subir imagen":
@@ -325,25 +326,38 @@ if mode == "Subir imagen":
     if up is not None:
         st.image(up, caption="Imagen cargada", width=300)
         image_b64 = _image_to_base64(up)
+    else:
+        image_b64 = None  # asegúrate de que exista
+else:
+    # en cualquier otro modo, no usamos imagen
+    image_b64 = None
 
-elif mode == "Escribir texto":
-    notes_text = st.text_area("✍️ Escribe o pega tus notas", height=220, placeholder="Tema o contenido...")
+if mode == "Escribir texto":
+    notes_text = st.text_area("✍️ Escribe o pega tus notas", height=220, placeholder="Tema o contenido...") or ""
 
 elif mode == "Subir PDF":
     up = st.file_uploader("📤 Sube un PDF", type=["pdf"])
     if up is not None:
-        notes_text = extract_text_from_pdf(up)
+        notes_text = extract_text_from_pdf(up) or ""
         st.text_area("📄 Texto extraído del PDF", notes_text, height=220)
 
 elif mode == "Subir PPTX":
     up = st.file_uploader("📤 Sube un PPTX", type=["pptx"])
     if up is not None:
-        notes_text = extract_text_from_pptx(up)
+        notes_text = extract_text_from_pptx(up) or ""
         st.text_area("📊 Texto extraído del PPTX", notes_text, height=220)
 
 st.divider()
 
 if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
+    # Validaciones por modo para evitar llamadas vacías
+    if mode == "Subir imagen" and image_b64 is None:
+        st.error("Por favor sube una imagen antes de generar.")
+        st.stop()
+    if mode != "Subir imagen" and not (notes_text or "").strip():
+        st.error("No hay texto de entrada. Escribe o sube un archivo válido.")
+        st.stop()
+
     st.info("⏳ Generando LaTeX con GPT...")
     latex_code = call_openai(PROMPT_CHEATSHEET, notes_text=notes_text, image_b64=image_b64)
 
@@ -383,6 +397,7 @@ if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
         )
     else:
         st.error("❌ Falló la compilación del PDF. Revisa el LaTeX o el log mostrado.")
+
 # ------------------ FOOTER ------------------
 st.markdown("""
 <hr style="margin-top:2rem; margin-bottom:0.5rem;">
