@@ -281,26 +281,21 @@ def compile_pdf(latex_code: str, engine_preference=("pdflatex", "tectonic")):
         return None
 
 # ------------------ INTERFAZ ------------------
-with st.sidebar:
-    st.header("⚙️ Opciones")
-    sidebar_topic = st.text_input("Tema (opcional, sobrescribe el detectado)", value="")
-    st.markdown(
-        "- El nombre del archivo usará: `sheat_cheat_<tema>`\n"
-        "- Si no escribes tema, se detecta del LaTeX o de tu entrada."
-    )
-    st.divider()
-    st.caption("Usa `packages.txt` en Streamlit Cloud para instalar LaTeX. Opcional: agrega `tectonic`.")
-    
-    if False:  # 👈 nunca se ejecuta
+if False:
     with st.sidebar:
         st.header("⚙️ Opciones")
         sidebar_topic = st.text_input("Tema (opcional, sobrescribe el detectado)", value="")
-        ...
-
-
-mode = st.radio("Entrada:", ["Subir imagen", "Escribir texto", "Subir PDF", "Subir PPTX"], horizontal=True)
-notes_text = ""
-image_b64 = None
+        st.markdown(
+            "- El nombre del archivo usará: `sheat_cheat_<tema>`\n"
+            "- Si no escribes tema, se detecta del LaTeX o de tu entrada."
+        )
+        st.divider()
+        st.caption("Usa `packages.txt` en Streamlit Cloud para instalar LaTeX. Opcional: agrega `tectonic`.")
+        
+        if False:  # 👈 nunca se ejecuta
+        with st.sidebar:
+            st.header("⚙️ Opciones")
+            sidebar_topic = st.text_input("Tema (opcional, sobrescribe el detectado)", value="")
 
 if mode == "Subir imagen":
     up = st.file_uploader("📤 Sube una imagen (JPG/PNG)", type=["jpg","jpeg","png"])
