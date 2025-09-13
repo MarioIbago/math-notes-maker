@@ -56,6 +56,7 @@ PROMPT_CHEATSHEET = (
     "9) \\section{Símbolos y notación}: tabla/índice compacto de variables y constantes (1 línea por elemento).\n"
     "10) \\section{Errores comunes y buenas prácticas}: lista breve de 4–6 bullets (p. ej. signos, dominios, redondeos, unidades, orden de operaciones).\n"
     "11) \\section{Resumen de fórmulas esenciales}: tcolorbox con 5–10 fórmulas “de oro” en display; bajo cada una, "
+    "12) " Al final di como pie de pagina pon en el latex desarollado por Desarrollado por [MarioIbago](https://github.com/MarioIbago).\n"
     "   una nota de 1 línea (dominio/uso típico/alerta).\n\n"
 
     "ESTILO Y CALIDAD:\n"
