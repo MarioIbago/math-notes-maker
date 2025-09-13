@@ -290,6 +290,13 @@ with st.sidebar:
     )
     st.divider()
     st.caption("Usa `packages.txt` en Streamlit Cloud para instalar LaTeX. Opcional: agrega `tectonic`.")
+    
+    if False:  # 👈 nunca se ejecuta
+    with st.sidebar:
+        st.header("⚙️ Opciones")
+        sidebar_topic = st.text_input("Tema (opcional, sobrescribe el detectado)", value="")
+        ...
+
 
 mode = st.radio("Entrada:", ["Subir imagen", "Escribir texto", "Subir PDF", "Subir PPTX"], horizontal=True)
 notes_text = ""
