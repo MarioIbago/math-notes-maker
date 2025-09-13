@@ -383,3 +383,13 @@ if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
         )
     else:
         st.error("❌ Falló la compilación del PDF. Revisa el LaTeX o el log mostrado.")
+# ------------------ FOOTER ------------------
+st.markdown("""
+<hr style="margin-top:2rem; margin-bottom:0.5rem;">
+<div style="text-align:center; color:gray; font-size:0.9rem;">
+  Hecho por <b>MarioIbago</b> · 
+  <a href="https://github.com/MarioIbago/math-notes-maker/" target="_blank">
+    github.com/MarioIbago/math-notes-maker
+  </a>
+</div>
+""", unsafe_allow_html=True)
