@@ -281,21 +281,30 @@ def compile_pdf(latex_code: str, engine_preference=("pdflatex", "tectonic")):
         return None
 
 # ------------------ INTERFAZ ------------------
+# ------------------ INTERFAZ (SIDEBAR OCULTA) ------------------
+# Mantiene el código pero nunca lo ejecuta (no aparece en UI)
 if False:
     with st.sidebar:
         st.header("⚙️ Opciones")
-        sidebar_topic = st.text_input("Tema (opcional, sobrescribe el detectado)", value="")
+
+        if "sidebar_topic" not in st.session_state:
+            st.session_state.sidebar_topic = ""
+
+        st.session_state.sidebar_topic = st.text_input(
+            "Tema (opcional, sobrescribe el detectado)",
+            value=st.session_state.sidebar_topic,
+            placeholder="Derivadas, Integrales, Probabilidad…"
+        )
+
         st.markdown(
             "- El nombre del archivo usará: `sheat_cheat_<tema>`\n"
             "- Si no escribes tema, se detecta del LaTeX o de tu entrada."
         )
         st.divider()
         st.caption("Usa `packages.txt` en Streamlit Cloud para instalar LaTeX. Opcional: agrega `tectonic`.")
-        
-        if False:  # 👈 nunca se ejecuta
-        with st.sidebar:
-            st.header("⚙️ Opciones")
-            sidebar_topic = st.text_input("Tema (opcional, sobrescribe el detectado)", value="")
+
+# Como la sidebar está oculta, forzamos un valor vacío:
+sidebar_topic = ""
 
 if mode == "Subir imagen":
     up = st.file_uploader("📤 Sube una imagen (JPG/PNG)", type=["jpg","jpeg","png"])
