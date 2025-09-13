@@ -12,14 +12,6 @@ enableXsrfProtection = true
 
 [browser]
 gatherUsageStats = false
-# .streamlit/config.toml
+
 [ui]
-initial_sidebar_state = "collapsed"
-
-[theme]
-base="light"
-primaryColor="#1f77b4"
-font="sans serif"
-
-[server]
-headless = true
+initial_sidebar_state="collapsed"   # 👈 Sidebar siempre colapsada al abrir
