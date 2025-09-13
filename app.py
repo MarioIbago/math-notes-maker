@@ -29,7 +29,19 @@ if not API_KEY:
     st.warning("⚠️ Configura tu OPENAI_API_KEY en Secrets (Streamlit) o como variable de entorno.")
 client = OpenAI(api_key=API_KEY)
 
-st.title("📘 Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF (by Mario Ibarra)")
+# ------------------ CABECERA ------------------
+st.markdown("""
+<div style="text-align: center; margin-top: -1rem; margin-bottom: 1.5rem;">
+  <div style="font-size:2.2rem;">📘</div>
+  <h1 style="margin-bottom:0; font-size:1.8rem; font-weight:800;">
+    Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF
+  </h1>
+  <p style="margin-top:0.3rem; font-size:0.95rem; color:gray;">
+    by Mario Ibarra · convierte tus apuntes en un PDF bonito
+  </p>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ------------------ PROMPT (más extenso) ------------------
 PROMPT_CHEATSHEET = (
