@@ -1,4 +1,4 @@
-# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX) + Login centrado con logout
+# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX) + Login arriba con logout
 # =============================================================================
 
 import streamlit as st
@@ -20,7 +20,27 @@ st.set_page_config(
     page_title="Sheet Cheat en PDF",
     page_icon="✏️",
     layout="centered",
-    initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
+    initial_sidebar_state="collapsed"
+)
+
+# ======= CSS global para compactar el top y colocar login ALTO =======
+st.markdown(
+    """
+<style>
+/***** Compacta padding superior de Streamlit *****/
+.block-container{padding-top:1.25rem; padding-bottom:2rem;}
+
+/***** Estilos del login *****/
+.login-container {display:flex; justify-content:center; align-items:flex-start; min-height:calc(100vh - 4rem); padding-top:1.25rem;}
+.login-card {max-width:420px; width:100%; padding:1.5rem 1.25rem; border-radius:1.1rem;
+             border:1px solid rgba(0,0,0,0.08); box-shadow:0 8px 28px rgba(0,0,0,0.12);
+             background:linear-gradient(180deg,#ffffff 0%, #fafafa 100%);} 
+.login-title {display:none;} /* quitamos la palabra "Acceso" */
+.login-sub {margin:0 0 .75rem 0; color:#5f6368; text-align:center; font-size:.95rem;}
+.lock {font-size:2.2rem; text-align:center; margin-bottom:.35rem;}
+</style>
+""",
+    unsafe_allow_html=True,
 )
 
 # ==========================
@@ -29,17 +49,6 @@ st.set_page_config(
 ADMIN_USER = st.secrets.get("ADMIN_USER", "")
 APP_PASSWORD = st.secrets.get("APP_PASSWORD", "")
 
-LOGIN_CSS = """
-<style>
-  .login-container {display:flex;justify-content:center;align-items:center;height:100vh;width:100%;}
-  .login-card {max-width:420px;width:100%;padding:2rem 1.6rem;border-radius:1.2rem;
-               border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 32px rgba(0,0,0,0.12);
-               background: linear-gradient(180deg, #ffffff 0%, #f9f9f9 100%);}
-  .login-title {margin:0 0 .25rem 0;font-weight:800;font-size:1.6rem;text-align:center;}
-  .login-sub {margin:0 0 1.2rem 0;color:gray;text-align:center;font-size:.95rem;}
-  .lock {font-size:2.5rem;text-align:center;margin-bottom:.6rem;}
-</style>
-"""
 
 def _do_logout():
     for k in ("auth_ok", "auth_err", "__u__", "__p__", "current_user"):
@@ -49,26 +58,23 @@ def _do_logout():
 
 
 def login_gate():
-    """Pantalla de login. Tras autenticarse, hace rerender limpio sin el formulario."""
+    """Pantalla de login. Desaparece tras validar y rerenderiza la app."""
     if "auth_ok" not in st.session_state:
         st.session_state.auth_ok = False
     if "auth_err" not in st.session_state:
         st.session_state.auth_err = False
 
-    # Si ya está autenticado, salir
     if st.session_state.auth_ok:
         return
 
     if not ADMIN_USER or not APP_PASSWORD:
         st.warning("Configura ADMIN_USER y APP_PASSWORD en Secrets.")
 
-    st.markdown(LOGIN_CSS, unsafe_allow_html=True)
-
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
     st.markdown('<div class="login-card">', unsafe_allow_html=True)
     st.markdown('<div class="lock">🔒</div>', unsafe_allow_html=True)
-    st.markdown('<h1 class="login-title">Acceso</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="login-sub">Ingresa con tu usuario y contraseña</p>', unsafe_allow_html=True)
+    # Texto minimal, arriba: "Enter user and contraseña"
+    st.markdown('<p class="login-sub">Enter user and contraseña</p>', unsafe_allow_html=True)
 
     with st.form("login_form", clear_on_submit=False):
         u = st.text_input("Usuario", value=st.session_state.get("__u__", ""), key="__u__")
@@ -82,7 +88,6 @@ def login_gate():
             st.session_state.auth_ok = True
             st.session_state.auth_err = False
             st.session_state.current_user = u or ADMIN_USER
-            # 🔁 Limpiar la pantalla de login y renderizar solo la app
             st.rerun()
         else:
             st.session_state.auth_ok = False
@@ -94,14 +99,13 @@ def login_gate():
     st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Bloquea la app si no autenticó
     st.stop()
 
 # 🔐 Mostrar login si hace falta
 login_gate()
 
 # ==========================
-# 🔝 TOPBAR + LOGOUT (se ve solo tras login)
+# 🔝 TOPBAR + LOGOUT (solo después del login)
 # ==========================
 with st.container():
     c1, c2 = st.columns([6, 2], vertical_alignment="center")
@@ -126,7 +130,7 @@ client = OpenAI(api_key=API_KEY)
 # ==========================
 st.markdown(
     """
-<div style=\"text-align: center; margin-top: -0.5rem; margin-bottom: 1.2rem;\"> 
+<div style=\"text-align:center; margin-top:-0.25rem; margin-bottom:1.0rem;\"> 
   <p style=\"margin-top:0.2rem; font-size:1.05rem; color:gray;\">Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF</p>
 </div>
 """,
@@ -495,13 +499,9 @@ st.markdown(
     """
 <hr style="margin-top:2rem; margin-bottom:0.5rem;">
 <div style="text-align:center; color:gray; font-size:0.9rem;">
-  Hecho por <b>MarioIbago</b> · 
-  <a href="https://github.com/MarioIbago/math-notes-maker/" target="_blank">
-    github.com/MarioIbago/math-notes-maker
-  </a>
+  Dev by <b>Mario I</b> · 
+  <a href="https://github.com/MarioIbago" target="_blank">github.com/MarioIbago</a>
 </div>
 """,
     unsafe_allow_html=True,
 )
-
-# 🔚 También tienes un botón de logout en la parte superior.
