@@ -1,4 +1,4 @@
-# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX) + Login arriba con logout
+# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX) + Login pegado arriba (sin scroll)
 # =============================================================================
 
 import streamlit as st
@@ -23,21 +23,23 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ======= CSS global para compactar el top y colocar login ALTO =======
+# ======= CSS global minimal (login ALTO sin espacio extra) =======
 st.markdown(
     """
 <style>
 /***** Compacta padding superior de Streamlit *****/
-.block-container{padding-top:1.25rem; padding-bottom:2rem;}
+.block-container{padding-top:0.6rem; padding-bottom:2rem;}
+header, footer {visibility: hidden;} /* oculta header de Streamlit que agrega alto */
 
-/***** Estilos del login *****/
-.login-container {display:flex; justify-content:center; align-items:flex-start; min-height:calc(100vh - 4rem); padding-top:1.25rem;}
-.login-card {max-width:420px; width:100%; padding:1.5rem 1.25rem; border-radius:1.1rem;
-             border:1px solid rgba(0,0,0,0.08); box-shadow:0 8px 28px rgba(0,0,0,0.12);
-             background:linear-gradient(180deg,#ffffff 0%, #fafafa 100%);} 
-.login-title {display:none;} /* quitamos la palabra "Acceso" */
-.login-sub {margin:0 0 .75rem 0; color:#5f6368; text-align:center; font-size:.95rem;}
-.lock {font-size:2.2rem; text-align:center; margin-bottom:.35rem;}
+/***** Estilos del login arriba *****/
+.login-wrap {display:flex; justify-content:center; align-items:flex-start;}
+.login-card {max-width:420px; width:100%; padding:1.1rem 1rem; border-radius:1rem;
+             border:1px solid rgba(0,0,0,0.08); box-shadow:0 8px 24px rgba(0,0,0,0.10);
+             background:#ffffff;}
+.login-note {margin:0 0 .6rem 0; color:#5f6368; text-align:center; font-size:.95rem;}
+.lock {font-size:1.9rem; text-align:center; margin-bottom:.3rem;}
+/* Inputs más compactos */
+.css-1cpxqw2, .stTextInput>div>div>input {padding:0.55rem 0.75rem;}
 </style>
 """,
     unsafe_allow_html=True,
@@ -58,7 +60,7 @@ def _do_logout():
 
 
 def login_gate():
-    """Pantalla de login. Desaparece tras validar y rerenderiza la app."""
+    """Pantalla de login mínima y arriba. Desaparece tras validar."""
     if "auth_ok" not in st.session_state:
         st.session_state.auth_ok = False
     if "auth_err" not in st.session_state:
@@ -67,14 +69,14 @@ def login_gate():
     if st.session_state.auth_ok:
         return
 
-    if not ADMIN_USER or not APP_PASSWORD:
-        st.warning("Configura ADMIN_USER y APP_PASSWORD en Secrets.")
+    # No avisos aquí para no empujar el formulario hacia abajo
+    if not (ADMIN_USER and APP_PASSWORD):
+        pass
 
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
     st.markdown('<div class="login-card">', unsafe_allow_html=True)
     st.markdown('<div class="lock">🔒</div>', unsafe_allow_html=True)
-    # Texto minimal, arriba: "Enter user and contraseña"
-    st.markdown('<p class="login-sub">Enter user and contraseña</p>', unsafe_allow_html=True)
+    st.markdown('<p class="login-note">Enter user and contraseña</p>', unsafe_allow_html=True)
 
     with st.form("login_form", clear_on_submit=False):
         u = st.text_input("Usuario", value=st.session_state.get("__u__", ""), key="__u__")
@@ -82,8 +84,8 @@ def login_gate():
         ok = st.form_submit_button("Entrar")
 
     if ok:
-        user_ok = hmac.compare_digest(u or "", ADMIN_USER or "")
-        pass_ok = hmac.compare_digest(p or "", APP_PASSWORD or "")
+        user_ok = hmac.compare_digest((u or "").strip(), (ADMIN_USER or "").strip())
+        pass_ok = hmac.compare_digest((p or "").strip(), (APP_PASSWORD or "").strip())
         if user_ok and pass_ok:
             st.session_state.auth_ok = True
             st.session_state.auth_err = False
@@ -118,20 +120,20 @@ with st.container():
             _do_logout()
 
 # ==========================
-# 🔧 CONFIG API OpenAI
+# 🔧 CONFIG API OpenAI (advertencias aquí, ya logueado) 
 # ==========================
 API_KEY = st.secrets.get("OPENAI_OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 if not API_KEY:
     st.warning("⚠️ Configura tu OPENAI_API_KEY en Secrets (Streamlit) o como variable de entorno.")
-client = OpenAI(api_key=API_KEY)
+client = OpenAI(api_key=API_KEY) if API_KEY else None
 
 # ==========================
 # 🧠 PROMPT PRINCIPAL
 # ==========================
 st.markdown(
     """
-<div style=\"text-align:center; margin-top:-0.25rem; margin-bottom:1.0rem;\"> 
-  <p style=\"margin-top:0.2rem; font-size:1.05rem; color:gray;\">Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF</p>
+<div style=\"text-align:center; margin-top:0; margin-bottom:0.8rem;\"> 
+  <p style=\"margin-top:0.15rem; font-size:1.05rem; color:gray;\">Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF</p>
 </div>
 """,
     unsafe_allow_html=True,
@@ -260,11 +262,9 @@ def ensure_full_document(latex_code: str) -> str:
 
 
 def call_openai(prompt, notes_text=None, image_b64=None):
-    API_KEY = st.secrets.get("OPENAI_OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
-    if not API_KEY:
+    if not client:
         st.error("No hay API key configurada.")
         return ""
-    client = OpenAI(api_key=API_KEY)
     try:
         if image_b64:
             resp = client.chat.completions.create(
