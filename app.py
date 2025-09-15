@@ -1,5 +1,6 @@
-# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX) + Login simple
+# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX) + Login centrado
 # =============================================================================
+
 
 import streamlit as st
 from openai import OpenAI
@@ -16,81 +17,80 @@ import shutil
 import unicodedata
 import hmac
 
+
 st.set_page_config(
-    page_title="Sheet Cheat en PDF",
-    page_icon="✏️",
-    layout="centered",
-    initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
+page_title="Sheet Cheat en PDF",
+page_icon="✏️",
+layout="centered",
+initial_sidebar_state="collapsed" # 👈 fuerza sidebar colapsada
 )
+
 
 # ==========================
 # 🔐 LOGIN (opción simple)
 # ==========================
-# 👉 Configura estos valores en Streamlit Secrets (Settings → App secrets):
-# ADMIN_USER = "admin"
-# APP_PASSWORD = "102606"
 ADMIN_USER = st.secrets.get("ADMIN_USER", "")
 APP_PASSWORD = st.secrets.get("APP_PASSWORD", "")
 
+
 LOGIN_CSS = """
 <style>
-  .login-wrap{display:flex;justify-content:center;align-items:center;min-height:70vh}
-  .login-card{max-width:420px;width:100%;padding:2rem 1.6rem;border-radius:1.2rem;
-              border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 32px rgba(0,0,0,0.08);
-              background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(250,250,250,0.95));}
-  .login-title{margin:0 0 .25rem 0;font-weight:800;font-size:1.5rem;text-align:center}
-  .login-sub{margin:0 0 1.2rem 0;color:gray;text-align:center;font-size:.95rem}
-  .lock{font-size:2.2rem;text-align:center;margin-bottom:.25rem}
-  .brand{font-weight:700}
+.login-container {display:flex;justify-content:center;align-items:center;height:100vh;width:100%;}
+.login-card {max-width:420px;width:100%;padding:2rem 1.6rem;border-radius:1.2rem;
+border:1px solid rgba(0,0,0,0.08);box-shadow:0 8px 32px rgba(0,0,0,0.12);
+background: linear-gradient(180deg, #ffffff 0%, #f9f9f9 100%);}
+.login-title {margin:0 0 .25rem 0;font-weight:800;font-size:1.6rem;text-align:center;}
+.login-sub {margin:0 0 1.2rem 0;color:gray;text-align:center;font-size:.95rem;}
+.lock {font-size:2.5rem;text-align:center;margin-bottom:.6rem;}
 </style>
 """
 
 
 def login_gate():
-    """Renderiza un login estético y bloquea la app hasta autenticarse.
-    Requiere ADMIN_USER y APP_PASSWORD en secrets.
-    """
-    if "auth_ok" not in st.session_state:
-        st.session_state.auth_ok = False
-    if "auth_err" not in st.session_state:
-        st.session_state.auth_err = False
-
-    if not ADMIN_USER or not APP_PASSWORD:
-        st.warning("Configura ADMIN_USER y APP_PASSWORD en Secrets.")
-
-    st.markdown(LOGIN_CSS, unsafe_allow_html=True)
-    with st.container():
-        st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
-        with st.container():
-            st.markdown('<div class="login-card">', unsafe_allow_html=True)
-            st.markdown('<div class="lock">🔒</div>', unsafe_allow_html=True)
-            st.markdown('<h1 class="login-title">Acceso</h1>', unsafe_allow_html=True)
-            st.markdown('<p class="login-sub">Ingresa con tu usuario y contraseña</p>', unsafe_allow_html=True)
-
-            with st.form("login_form", clear_on_submit=False):
-                u = st.text_input("Usuario", value=st.session_state.get("__u__", ""), key="__u__")
-                p = st.text_input("Contraseña", type="password", value=st.session_state.get("__p__", ""), key="__p__")
-                ok = st.form_submit_button("Entrar")
-
-            if ok:
-                user_ok = hmac.compare_digest(u or "", ADMIN_USER or "")
-                pass_ok = hmac.compare_digest(p or "", APP_PASSWORD or "")
-                st.session_state.auth_ok = bool(user_ok and pass_ok)
-                st.session_state.auth_err = not st.session_state.auth_ok
-
-            if st.session_state.auth_err and not st.session_state.auth_ok:
-                st.error("Credenciales inválidas. Intenta de nuevo.")
-
-            st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    if not st.session_state.auth_ok:
-        st.stop()
+if "auth_ok" not in st.session_state:
+st.session_state.auth_ok = False
+if "auth_err" not in st.session_state:
+st.session_state.auth_err = False
 
 
-# 🔐 Bloquear la app inmediatamente
+if not ADMIN_USER or not APP_PASSWORD:
+st.warning("Configura ADMIN_USER y APP_PASSWORD en Secrets.")
+
+
+st.markdown(LOGIN_CSS, unsafe_allow_html=True)
+
+
+st.markdown('<div class="login-container">', unsafe_allow_html=True)
+st.markdown('<div class="login-card">', unsafe_allow_html=True)
+st.markdown('<div class="lock">🔒</div>', unsafe_allow_html=True)
+st.markdown('<h1 class="login-title">Acceso</h1>', unsafe_allow_html=True)
+st.markdown('<p class="login-sub">Ingresa con tu usuario y contraseña</p>', unsafe_allow_html=True)
+
+
+with st.form("login_form", clear_on_submit=False):
+u = st.text_input("Usuario", value=st.session_state.get("__u__", ""), key="__u__")
+p = st.text_input("Contraseña", type="password", value=st.session_state.get("__p__", ""), key="__p__")
+ok = st.form_submit_button("Entrar")
+
+
+if ok:
+user_ok = hmac.compare_digest(u or "", ADMIN_USER or "")
+pass_ok = hmac.compare_digest(p or "", APP_PASSWORD or "")
+st.session_state.auth_ok = bool(user_ok and pass_ok)
+st.session_state.auth_err = not st.session_state.auth_ok
+
+
+if st.session_state.auth_err and not st.session_state.auth_ok:
+st.error("Credenciales inválidas. Intenta de nuevo.")
+
+
+st.markdown('</div>', unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
+
+
+if not st.session_state.auth_ok:
+st.stop()
 login_gate()
-
 # ==========================
 # 🔧 CONFIG API OpenAI
 # ==========================
