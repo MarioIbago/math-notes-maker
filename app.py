@@ -14,7 +14,6 @@ import PyPDF2
 from pptx import Presentation
 import shutil
 import unicodedata
-import hmac  # 🔐 login seguro
 
 st.set_page_config(
     page_title="Sheet Cheat en PDF",
@@ -22,69 +21,6 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
 )
-
-# ------------------ 🎨 ESTILOS LOGIN (fuente bonita + labels rojas) ------------------
-st.markdown(
-    """
-<style>
-.block-container{padding-top:0.4rem; padding-bottom:2rem;}
-header, footer {visibility: hidden; height:0;}
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap');
-.login-wrap {display:flex; justify-content:center; align-items:flex-start;}
-.login-title{
-  margin:0 0 .95rem 0;
-  text-align:center;
-  font-family:'Poppins', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans';
-  font-weight:800; font-size:1.7rem; letter-spacing:.25px; line-height:1.15; color:#111;
-}
-.stTextInput label {color:#c62828; font-weight:700; font-size:0.95rem;}
-.stTextInput>div>div>input {padding:0.55rem 0.75rem;}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-# ------------------ 🔐 LOGIN ARRIBA (admin / 102606) ------------------
-ADMIN_USER = st.secrets.get("ADMIN_USER") or os.getenv("ADMIN_USER", "admin")
-APP_PASSWORD = st.secrets.get("APP_PASSWORD") or os.getenv("APP_PASSWORD", "102606")
-
-def login_gate():
-    if "auth_ok" not in st.session_state:
-        st.session_state.auth_ok = False
-    if "auth_err" not in st.session_state:
-        st.session_state.auth_err = False
-
-    if st.session_state.auth_ok:
-        return
-
-    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="login-title">ENTER <span style="font-weight:800;">USERNAME</span> AND <span style="font-weight:800;">PASSWORD</span></div>',
-        unsafe_allow_html=True
-    )
-    with st.form("login_form", clear_on_submit=False):
-        u = st.text_input("Username", value=st.session_state.get("__u__", ""), key="__u__")
-        p = st.text_input("Password", type="password", value=st.session_state.get("__p__", ""), key="__p__")
-        ok = st.form_submit_button("Login")
-
-    if ok:
-        user_ok = hmac.compare_digest((u or "").strip(), (ADMIN_USER or "").strip())
-        pass_ok = hmac.compare_digest((p or "").strip(), (APP_PASSWORD or "").strip())
-        if user_ok and pass_ok:
-            st.session_state.auth_ok = True
-            st.session_state.auth_err = False
-            st.session_state.current_user = u or ADMIN_USER
-            st.rerun()
-        else:
-            st.session_state.auth_err = True
-
-    if st.session_state.auth_err and not st.session_state.auth_ok:
-        st.error("Invalid credentials. Try again.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.stop()  # 🚫 bloquea el resto de la app hasta loguear
-
-login_gate()
 
 # ------------------ CONFIG ------------------
 API_KEY = st.secrets.get("OPENAI_OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
@@ -136,6 +72,7 @@ PROMPT_CHEATSHEET = (
     "11) \\section{Resumen de fórmulas esenciales}: tcolorbox con 5–10 fórmulas \"de oro\" en display; bajo cada una, "
     "   una nota de 1 línea (dominio/uso típico/alerta).\n\n"
     "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago).\n"
+
     "ESTILO Y CALIDAD:\n"
     "• Español claro y conciso; objetivo 1–2 páginas. "
     "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago). "
@@ -197,23 +134,11 @@ def sanitize_latex(content: str) -> str:
         txt = txt.split("\n", 1)[-1] if "\n" in txt else ""
     txt = _TITLESec_PAT.sub("", txt)
     txt = _TITLEFORMAT_PAT.sub("", txt)
-    # ⚙️ si hay \documentclass, corta cualquier ruido antes
-    m = re.search(r"\\documentclass", txt)
-    if m:
-        txt = txt[m.start():]
     return txt.strip()
 
 def ensure_full_document(latex_code: str) -> str:
-    # ⚙️ Evita doble preámbulo: si ya trae \documentclass, no envolver.
-    code = latex_code.strip()
-    if "\\documentclass" in code:
-        if "\\begin{document}" not in code:
-            code += "\n\\begin{document}\n"
-        if "\\end{document}" not in code:
-            code += "\n\\end{document}\n"
-        return code
-    if "\\begin{document}" in code:
-        return code
+    if "\\begin{document}" in latex_code:
+        return latex_code
     wrapper = (
         "\\documentclass[11pt]{article}\n"
         "\\usepackage[spanish, es-tabla]{babel}\n"
@@ -229,7 +154,7 @@ def ensure_full_document(latex_code: str) -> str:
         "\\usepackage{hyperref}\n"
         "\\usepackage{microtype}\n"
         "\\tcbset{colback=gray!3,colframe=black!50,boxrule=0.5pt,arc=2pt}\n\n"
-        "\\begin{document}\n" + code + "\n\\end{document}\n"
+        "\\begin{document}\n" + latex_code + "\n\\end{document}\n"
     )
     return wrapper
 
@@ -266,10 +191,7 @@ def call_openai(prompt, notes_text=None, image_b64=None):
     return content
 
 # --------- Detección de tema y nombre de archivo ----------
-#   1) match específico Sheet Cheat:  \\title{ Sheet  Cheat :  <tema> }
-#   2) cualquier \\title{ ... } -> toma texto después de ':' si existe; si no, todo
-TITLE_RE_STRICT = re.compile(r"\\title\\{[^}]*?Sheet\\s*Cheat\\s*:\\s*([^}]*)\\}", re.IGNORECASE | re.DOTALL)
-TITLE_RE_ANY    = re.compile(r"\\title\\{([^}]*)\\}", re.IGNORECASE | re.DOTALL)
+TITLE_RE = re.compile(r"\\title\\{\\s*Sheet\\s*Cheat:\\s*([^}]*)\\}", re.IGNORECASE)
 
 def _slugify(text: str) -> str:
     text = unicodedata.normalize("NFKD", text)
@@ -277,39 +199,19 @@ def _slugify(text: str) -> str:
     text = re.sub(r"[^a-zA-Z0-9]+", "-", text).strip("-").lower()
     return text or "tema"
 
-def _clean_inline(text: str) -> str:
-    # compacta espacios y saltos
-    return re.sub(r"\\s+", " ", (text or "").strip())
-
 def infer_topic(latex_code: str, notes_text: str, sidebar_topic: str) -> str:
-    # prioridad: sidebar > título "Sheet Cheat: ..." > cualquier \title{...} > primera línea del input
+    # prioridad: topic manual en sidebar > \title{Sheet Cheat: <tema>} > primera línea entrada > 'tema'
     if sidebar_topic and sidebar_topic.strip():
         return sidebar_topic.strip()
-
-    if latex_code:
-        m = TITLE_RE_STRICT.search(latex_code)
-        if m:
-            cand = _clean_inline(m.group(1))
-            if cand:
-                return cand
-        m2 = TITLE_RE_ANY.search(latex_code)
-        if m2:
-            raw = _clean_inline(m2.group(1))
-            # si tiene ":", toma lo que sigue; si no, todo
-            if ":" in raw:
-                cand = raw.split(":", 1)[1].strip()
-                if cand:
-                    return cand
-            if raw:
-                return raw
-
+    m = TITLE_RE.search(latex_code or "")
+    if m:
+        t = m.group(1).strip()
+        if t:
+            return t
     if notes_text:
-        # primera línea corta del input
-        first = (notes_text or "").strip().splitlines()[0] if (notes_text or "").strip() else ""
-        first = _clean_inline(first)
+        first = notes_text.strip().splitlines()[0] if notes_text.strip() else ""
         if first and len(first) <= 80:
-            return first
-
+            return first.strip()
     return "Tema"
 
 def build_filenames(topic: str):
@@ -500,9 +402,9 @@ if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
 st.markdown("""
 <hr style="margin-top:2rem; margin-bottom:0.5rem;">
 <div style="text-align:center; color:gray; font-size:0.9rem;">
-  Dev by <b>Mario I</b> · 
-  <a href="https://github.com/MarioIbago" target="_blank">
-    github.com/MarioIbago
+  Hecho por <b>MarioIbago</b> · 
+  <a href="https://github.com/MarioIbago/math-notes-maker/" target="_blank">
+    github.com/MarioIbago/math-notes-maker
   </a>
 </div>
 """, unsafe_allow_html=True)
