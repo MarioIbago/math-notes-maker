@@ -1,5 +1,5 @@
-# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX) + Login arriba bonito + FIX LaTeX
-# ==================================================================================
+# app.py — Imagen/Text/PDF/PPTX ➜ Sheet Cheat en PDF (LaTeX)
+# ===========================================================
 
 import streamlit as st
 from openai import OpenAI
@@ -14,114 +14,23 @@ import PyPDF2
 from pptx import Presentation
 import shutil
 import unicodedata
-import hmac
 
 st.set_page_config(
     page_title="Sheet Cheat en PDF",
     page_icon="✏️",
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
 )
 
-# ======= CSS (login arriba, fuente Poppins, labels rojas; sin rectángulos/candados) =======
-st.markdown(
-    """
-<style>
-/* Compacta parte superior y oculta header/footer nativos */
-.block-container{padding-top:0.4rem; padding-bottom:2rem;}
-header, footer {visibility: hidden; height:0;}
-
-/* —— Fuente bonita (Poppins) —— */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap');
-
-/* Contenedor del login, pegado arriba */
-.login-wrap {display:flex; justify-content:center; align-items:flex-start;}
-
-/* Título limpio y grande */
-.login-title{
-  margin:0 0 .95rem 0;
-  text-align:center;
-  font-family:'Poppins', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans';
-  font-weight:800;
-  font-size:1.7rem;
-  letter-spacing:.25px;
-  line-height:1.15;
-  color:#111;
-}
-
-/* Labels rojas y bold */
-.stTextInput label {color:#c62828; font-weight:700; font-size:0.95rem;}
-
-/* Inputs más compactos */
-.stTextInput>div>div>input {padding:0.55rem 0.75rem;}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-# ======================
-# 🔐 LOGIN (gate simple)
-# ======================
-ADMIN_USER = st.secrets.get("ADMIN_USER") or os.getenv("ADMIN_USER", "admin")
-APP_PASSWORD = st.secrets.get("APP_PASSWORD") or os.getenv("APP_PASSWORD", "102606")
-
-
-def _logout():
-    for k in ("auth_ok", "auth_err", "__u__", "__p__", "current_user"):
-        if k in st.session_state:
-            del st.session_state[k]
-    st.rerun()
-
-
-def login_gate():
-    """Muestra login arriba. Si valida, hace rerun y deja pasar a la app."""
-    if "auth_ok" not in st.session_state:
-        st.session_state.auth_ok = False
-    if "auth_err" not in st.session_state:
-        st.session_state.auth_err = False
-
-    if st.session_state.auth_ok:
-        return  # ya logueado
-
-    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="login-title">ENTER <span style="font-weight:800;">USERNAME</span> AND <span style="font-weight:800;">PASSWORD</span></div>', unsafe_allow_html=True)
-
-    with st.form("login_form", clear_on_submit=False):
-        u = st.text_input("Username", value=st.session_state.get("__u__", ""), key="__u__")
-        p = st.text_input("Password", type="password", value=st.session_state.get("__p__", ""), key="__p__")
-        ok = st.form_submit_button("Login")
-
-    if ok:
-        user_ok = hmac.compare_digest((u or "").strip(), (ADMIN_USER or "").strip())
-        pass_ok = hmac.compare_digest((p or "").strip(), (APP_PASSWORD or "").strip())
-        if user_ok and pass_ok:
-            st.session_state.auth_ok = True
-            st.session_state.auth_err = False
-            st.session_state.current_user = u or ADMIN_USER
-            st.rerun()
-        else:
-            st.session_state.auth_ok = False
-            st.session_state.auth_err = True
-
-    if st.session_state.auth_err and not st.session_state.auth_ok:
-        st.error("Invalid credentials. Try again.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.stop()  # 🔒 bloquea el resto de la app hasta loguear
-
-
-# 🔐 Mostrar login si hace falta
-login_gate()
-
-# ------------------ CONFIG (se mueve aquí para no empujar el login) ------------------
+# ------------------ CONFIG ------------------
 API_KEY = st.secrets.get("OPENAI_OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 if not API_KEY:
     st.warning("⚠️ Configura tu OPENAI_API_KEY en Secrets (Streamlit) o como variable de entorno.")
-client = OpenAI(api_key=API_KEY) if API_KEY else None
+client = OpenAI(api_key=API_KEY)
 
 # ------------------ CABECERA ------------------
-st.markdown(
-    """
+
+st.markdown("""
 <div style="text-align: center; margin-top: -1rem; margin-bottom: 1.8rem;">
   <div style="font-size:2.6rem;">📘</div>
   <h1 style="margin-bottom:0; font-size:2.2rem; font-weight:800;">
@@ -131,15 +40,7 @@ st.markdown(
     Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF
   </p>
 </div>
-""",
-    unsafe_allow_html=True,
-)
-
-# (Opcional) Botón de logout arriba a la derecha
-col_a, col_b = st.columns([7, 1])
-with col_b:
-    if st.button("Logout", use_container_width=True):
-        _logout()
+""", unsafe_allow_html=True)
 
 # ------------------ PROMPT (más extenso) ------------------
 PROMPT_CHEATSHEET = (
@@ -171,6 +72,7 @@ PROMPT_CHEATSHEET = (
     "11) \\section{Resumen de fórmulas esenciales}: tcolorbox con 5–10 fórmulas \"de oro\" en display; bajo cada una, "
     "   una nota de 1 línea (dominio/uso típico/alerta).\n\n"
     "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago).\n"
+
     "ESTILO Y CALIDAD:\n"
     "• Español claro y conciso; objetivo 1–2 páginas. "
     "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago). "
@@ -184,13 +86,11 @@ PROMPT_CHEATSHEET = (
 _TITLESec_PAT = re.compile(r'\\usepackage\\s*\\{?\\s*titlesec\\s*\\}?', re.I)
 _TITLEFORMAT_PAT = re.compile(r'\\title(?:format|spacing)\\*?[^\\n]*', re.I)
 
-
 def _image_to_base64(uploaded_file):
     buf = BytesIO()
     img = Image.open(uploaded_file).convert("RGB")
     img.save(buf, format="JPEG")
     return base64.b64encode(buf.getvalue()).decode("utf-8")
-
 
 def extract_text_from_pdf(uploaded_file):
     try:
@@ -204,7 +104,6 @@ def extract_text_from_pdf(uploaded_file):
     except Exception as e:
         st.error(f"Error leyendo PDF: {e}")
         return ""
-
 
 def extract_text_from_pptx(uploaded_file):
     try:
@@ -221,9 +120,7 @@ def extract_text_from_pptx(uploaded_file):
         st.error(f"Error leyendo PPTX: {e}")
         return ""
 
-
 def sanitize_latex(content: str) -> str:
-    """Limpia marcas y elimina `titlesec`; corta ruido antes de la preámbulo."""
     lines = []
     for line in content.splitlines():
         s = line.strip()
@@ -231,37 +128,17 @@ def sanitize_latex(content: str) -> str:
             continue
         lines.append(line)
     txt = "\n".join(lines)
-    # normaliza saltos y BOM
     txt = txt.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\r\n", "\n")
     txt = txt.replace("\ufeff", "").strip()
-    # quita marcador COOR-BO-ZY si viene
     if txt.startswith("COOR-BO-ZY"):
         txt = txt.split("\n", 1)[-1] if "\n" in txt else ""
-    # elimina titlesec y titleformat
     txt = _TITLESec_PAT.sub("", txt)
     txt = _TITLEFORMAT_PAT.sub("", txt)
-    # si hay \documentclass, corta cualquier cosa antes
-    m = re.search(r"\\documentclass", txt)
-    if m:
-        txt = txt[m.start():]
     return txt.strip()
 
-
 def ensure_full_document(latex_code: str) -> str:
-    """Evita doble preámbulo. Si ya trae \documentclass, no envolver.
-    Si no trae, envolver con un preámbulo válido.
-    """
-    code = latex_code.strip()
-    if "\\documentclass" in code:
-        # Si por alguna razón falta begin/end, los añadimos al final
-        if "\\begin{document}" not in code:
-            code += "\n\\begin{document}\n"
-        if "\\end{document}" not in code:
-            code += "\n\\end{document}\n"
-        return code
-    if "\\begin{document}" in code:
-        return code
-    # Envolver cuando viene solo el cuerpo
+    if "\\begin{document}" in latex_code:
+        return latex_code
     wrapper = (
         "\\documentclass[11pt]{article}\n"
         "\\usepackage[spanish, es-tabla]{babel}\n"
@@ -277,13 +154,12 @@ def ensure_full_document(latex_code: str) -> str:
         "\\usepackage{hyperref}\n"
         "\\usepackage{microtype}\n"
         "\\tcbset{colback=gray!3,colframe=black!50,boxrule=0.5pt,arc=2pt}\n\n"
-        "\\begin{document}\n" + code + "\n\\end{document}\n"
+        "\\begin{document}\n" + latex_code + "\n\\end{document}\n"
     )
     return wrapper
 
-
 def call_openai(prompt, notes_text=None, image_b64=None):
-    if not client:
+    if not API_KEY:
         st.error("No hay API key configurada.")
         return ""
     try:
@@ -317,16 +193,14 @@ def call_openai(prompt, notes_text=None, image_b64=None):
 # --------- Detección de tema y nombre de archivo ----------
 TITLE_RE = re.compile(r"\\title\\{\\s*Sheet\\s*Cheat:\\s*([^}]*)\\}", re.IGNORECASE)
 
-
 def _slugify(text: str) -> str:
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"[^a-zA-Z0-9]+", "-", text).strip("-").lower()
     return text or "tema"
 
-
 def infer_topic(latex_code: str, notes_text: str, sidebar_topic: str) -> str:
-    # prioridad: topic manual en sidebar > \title{Sheet Cheat: <tema>} > primera línea entrada > 'Tema'
+    # prioridad: topic manual en sidebar > \title{Sheet Cheat: <tema>} > primera línea entrada > 'tema'
     if sidebar_topic and sidebar_topic.strip():
         return sidebar_topic.strip()
     m = TITLE_RE.search(latex_code or "")
@@ -340,17 +214,14 @@ def infer_topic(latex_code: str, notes_text: str, sidebar_topic: str) -> str:
             return first.strip()
     return "Tema"
 
-
 def build_filenames(topic: str):
     slug = _slugify(topic)
     base = f"sheat_cheat_{slug}"
     return base + ".tex", base + ".pdf"
 
 # ------------------ Compilación (con fallback opcional) ------------------
-
 def _has_cmd(cmd: str) -> bool:
     return shutil.which(cmd) is not None
-
 
 def compile_pdf(latex_code: str, engine_preference=("pdflatex", "tectonic")):
     if not latex_code.strip():
@@ -418,16 +289,20 @@ def compile_pdf(latex_code: str, engine_preference=("pdflatex", "tectonic")):
         return None
 
 # ------------------ INTERFAZ (SIDEBAR OCULTA) ------------------
+# Mantiene el código pero nunca lo ejecuta (no aparece en UI)
 if False:
     with st.sidebar:
         st.header("⚙️ Opciones")
+
         if "sidebar_topic" not in st.session_state:
             st.session_state.sidebar_topic = ""
+
         st.session_state.sidebar_topic = st.text_input(
             "Tema (opcional, sobrescribe el detectado)",
             value=st.session_state.sidebar_topic,
             placeholder="Derivadas, Integrales, Probabilidad…"
         )
+
         st.markdown(
             "- El nombre del archivo usará: `sheat_cheat_<tema>`\n"
             "- Si no escribes tema, se detecta del LaTeX o de tu entrada."
@@ -435,10 +310,11 @@ if False:
         st.divider()
         st.caption("Usa `packages.txt` en Streamlit Cloud para instalar LaTeX. Opcional: agrega `tectonic`.")
 
-# Sidebar oculta → valor vacío forzado
+# Como la sidebar está oculta, forzamos un valor vacío:
 sidebar_topic = ""
 
-# ----------- Inicialización y entrada -----------
+# ----------- Inicialización y entrada (⭐ evita NameError) -----------
+# Inicializa variables SIEMPRE para todos los modos
 notes_text = ""
 image_b64 = None
 up = None
@@ -451,17 +327,20 @@ if mode == "Subir imagen":
         st.image(up, caption="Imagen cargada", width=300)
         image_b64 = _image_to_base64(up)
     else:
-        image_b64 = None
+        image_b64 = None  # asegúrate de que exista
 else:
+    # en cualquier otro modo, no usamos imagen
     image_b64 = None
 
 if mode == "Escribir texto":
     notes_text = st.text_area("✍️ Escribe o pega tus notas", height=220, placeholder="Tema o contenido...") or ""
+
 elif mode == "Subir PDF":
     up = st.file_uploader("📤 Sube un PDF", type=["pdf"])
     if up is not None:
         notes_text = extract_text_from_pdf(up) or ""
         st.text_area("📄 Texto extraído del PDF", notes_text, height=220)
+
 elif mode == "Subir PPTX":
     up = st.file_uploader("📤 Sube un PPTX", type=["pptx"])
     if up is not None:
@@ -471,6 +350,7 @@ elif mode == "Subir PPTX":
 st.divider()
 
 if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
+    # Validaciones por modo para evitar llamadas vacías
     if mode == "Subir imagen" and image_b64 is None:
         st.error("Por favor sube una imagen antes de generar.")
         st.stop()
@@ -519,13 +399,12 @@ if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
         st.error("❌ Falló la compilación del PDF. Revisa el LaTeX o el log mostrado.")
 
 # ------------------ FOOTER ------------------
-st.markdown(
-    """
+st.markdown("""
 <hr style="margin-top:2rem; margin-bottom:0.5rem;">
 <div style="text-align:center; color:gray; font-size:0.9rem;">
-  Dev by <b>Mario I</b> · 
-  <a href="https://github.com/MarioIbago" target="_blank">github.com/MarioIbago</a>
+  Hecho por <b>MarioIbago</b> · 
+  <a href="https://github.com/MarioIbago/math-notes-maker/" target="_blank">
+    github.com/MarioIbago/math-notes-maker
+  </a>
 </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
