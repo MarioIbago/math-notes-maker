@@ -14,7 +14,6 @@ import PyPDF2
 from pptx import Presentation
 import shutil
 import unicodedata
-import hmac  # 🔐
 
 st.set_page_config(
     page_title="Sheet Cheat en PDF",
@@ -23,101 +22,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
 )
 
-# ======= CSS para login arriba, labels rojas y sin rectángulos/candado =======
-st.markdown(
-    """
-<style>
-/* Compactar la parte superior y ocultar header/footer nativos */
-.block-container{padding-top:0.4rem; padding-bottom:2rem;}
-header, footer {visibility: hidden; height:0;}
-
-/* Contenedor del login: arriba, sin tarjetas extra */
-.login-wrap {display:flex; justify-content:center; align-items:flex-start;}
-
-/* Título grande en inglés */
-.login-title {margin:0 0 .9rem 0; text-align:center; font-size:1.6rem; font-weight:800; letter-spacing:.3px;}
-
-/* Labels rojas y en negrita */
-.stTextInput label {color:#c62828; font-weight:700; font-size:0.95rem;}
-
-/* Inputs un poco más compactos */
-.stTextInput>div>div>input {padding:0.55rem 0.75rem;}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-# ======================
-# 🔐 LOGIN (gate simple)
-# ======================
-# Puedes definirlos en Streamlit Secrets:
-# ADMIN_USER, APP_PASSWORD
-ADMIN_USER = st.secrets.get("ADMIN_USER") or os.getenv("ADMIN_USER", "admin")
-APP_PASSWORD = st.secrets.get("APP_PASSWORD") or os.getenv("APP_PASSWORD", "102606")
-
-
-def _logout():
-    for k in ("auth_ok", "auth_err", "__u__", "__p__", "current_user"):
-        if k in st.session_state:
-            del st.session_state[k]
-    st.rerun()
-
-
-def login_gate():
-    """Muestra login arriba. Si valida, hace rerun y deja pasar a la app."""
-    if "auth_ok" not in st.session_state:
-        st.session_state.auth_ok = False
-    if "auth_err" not in st.session_state:
-        st.session_state.auth_err = False
-
-    # Si ya está logueado, no bloqueamos
-    if st.session_state.auth_ok:
-        return
-
-    # UI minimal sin rectángulos ni íconos
-    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
-    st.markdown('<div class="login-title">ENTER USERNAME AND PASSWORD</div>', unsafe_allow_html=True)
-
-    with st.form("login_form", clear_on_submit=False):
-        u = st.text_input("Username", value=st.session_state.get("__u__", ""), key="__u__")
-        p = st.text_input("Password", type="password", value=st.session_state.get("__p__", ""), key="__p__")
-        ok = st.form_submit_button("Login")
-
-    if ok:
-        user_ok = hmac.compare_digest((u or "").strip(), (ADMIN_USER or "").strip())
-        pass_ok = hmac.compare_digest((p or "").strip(), (APP_PASSWORD or "").strip())
-        if user_ok and pass_ok:
-            st.session_state.auth_ok = True
-            st.session_state.auth_err = False
-            st.session_state.current_user = u or ADMIN_USER
-            st.rerun()
-        else:
-            st.session_state.auth_ok = False
-            st.session_state.auth_err = True
-
-    if st.session_state.auth_err and not st.session_state.auth_ok:
-        st.error("Invalid credentials. Try again.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # 🔒 aquí sí bloquea si no logueaste
-    if not st.session_state.auth_ok:
-        st.stop()
-
-
-
-# Mostrar login si hace falta
-login_gate()
-
-# ------------------ CONFIG (se mueve aquí para no empujar el login) ------------------
+# ------------------ CONFIG ------------------
 API_KEY = st.secrets.get("OPENAI_OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
 if not API_KEY:
     st.warning("⚠️ Configura tu OPENAI_API_KEY en Secrets (Streamlit) o como variable de entorno.")
 client = OpenAI(api_key=API_KEY)
 
 # ------------------ CABECERA ------------------
-st.markdown(
-    """
+
+st.markdown("""
 <div style="text-align: center; margin-top: -1rem; margin-bottom: 1.8rem;">
   <div style="font-size:2.6rem;">📘</div>
   <h1 style="margin-bottom:0; font-size:2.2rem; font-weight:800;">
@@ -127,15 +40,7 @@ st.markdown(
     Imagen / Texto / PDF / PPTX ➜ Sheet Cheat en PDF
   </p>
 </div>
-""",
-    unsafe_allow_html=True,
-)
-
-# (Opcional) Botón de logout arriba a la derecha
-col_a, col_b = st.columns([7, 1])
-with col_b:
-    if st.button("Logout", use_container_width=True):
-        _logout()
+""", unsafe_allow_html=True)
 
 # ------------------ PROMPT (más extenso) ------------------
 PROMPT_CHEATSHEET = (
@@ -167,6 +72,7 @@ PROMPT_CHEATSHEET = (
     "11) \\section{Resumen de fórmulas esenciales}: tcolorbox con 5–10 fórmulas \"de oro\" en display; bajo cada una, "
     "   una nota de 1 línea (dominio/uso típico/alerta).\n\n"
     "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago).\n"
+
     "ESTILO Y CALIDAD:\n"
     "• Español claro y conciso; objetivo 1–2 páginas. "
     "• Al final, añade una línea de pie de página en LaTeX que diga: Desarrollado por [MarioIbago](https://github.com/MarioIbago). "
@@ -496,9 +402,9 @@ if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
 st.markdown("""
 <hr style="margin-top:2rem; margin-bottom:0.5rem;">
 <div style="text-align:center; color:gray; font-size:0.9rem;">
-  Dev by <b>Mario I</b> · 
-  <a href="https://github.com/MarioIbago" target="_blank">
-    github.com/MarioIbago
+  Hecho por <b>MarioIbago</b> · 
+  <a href="https://github.com/MarioIbago/math-notes-maker/" target="_blank">
+    github.com/MarioIbago/math-notes-maker
   </a>
 </div>
 """, unsafe_allow_html=True)
