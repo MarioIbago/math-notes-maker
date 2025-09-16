@@ -493,9 +493,9 @@ if st.button("⚡ Generar Sheet Cheat", use_container_width=True):
 st.markdown("""
 <hr style="margin-top:2rem; margin-bottom:0.5rem;">
 <div style="text-align:center; color:gray; font-size:0.9rem;">
-  Hecho por <b>MarioIbago</b> · 
-  <a href="https://github.com/MarioIbago/math-notes-maker/" target="_blank">
-    github.com/MarioIbago/math-notes-maker
+  Dev by <b>MarioIbago</b> · 
+  <a href="https://github.com/MarioIbago/" target="_blank">
+    github.com/MarioIbago/
   </a>
 </div>
 """, unsafe_allow_html=True)
