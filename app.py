@@ -14,6 +14,7 @@ import PyPDF2
 from pptx import Presentation
 import shutil
 import unicodedata
+import hmac
 
 st.set_page_config(
     page_title="Sheet Cheat en PDF",
@@ -21,6 +22,96 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"  # 👈 fuerza sidebar colapsada
 )
+
+# ======= CSS (login arriba, fuente Poppins, labels rojas; sin rectángulos/candados) =======
+st.markdown(
+    """
+<style>
+/* Compacta parte superior y oculta header/footer nativos */
+.block-container{padding-top:0.4rem; padding-bottom:2rem;}
+header, footer {visibility: hidden; height:0;}
+
+/* —— Fuente bonita (Poppins) —— */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap');
+
+/* Contenedor del login, pegado arriba */
+.login-wrap {display:flex; justify-content:center; align-items:flex-start;}
+
+/* Título limpio y grande */
+.login-title{
+  margin:0 0 .95rem 0;
+  text-align:center;
+  font-family:'Poppins', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans';
+  font-weight:800;
+  font-size:1.7rem;
+  letter-spacing:.25px;
+  line-height:1.15;
+  color:#111;
+}
+
+/* Labels rojas y bold */
+.stTextInput label {color:#c62828; font-weight:700; font-size:0.95rem;}
+
+/* Inputs más compactos */
+.stTextInput>div>div>input {padding:0.55rem 0.75rem;}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ======================
+# 🔐 LOGIN (gate simple)
+# ======================
+ADMIN_USER = st.secrets.get("ADMIN_USER") or os.getenv("ADMIN_USER", "admin")
+APP_PASSWORD = st.secrets.get("APP_PASSWORD") or os.getenv("APP_PASSWORD", "102606")
+
+
+def _logout():
+    for k in ("auth_ok", "auth_err", "__u__", "__p__", "current_user"):
+        if k in st.session_state:
+            del st.session_state[k]
+    st.rerun()
+
+
+def login_gate():
+    """Muestra login arriba. Si valida, hace rerun y deja pasar a la app."""
+    if "auth_ok" not in st.session_state:
+        st.session_state.auth_ok = False
+    if "auth_err" not in st.session_state:
+        st.session_state.auth_err = False
+
+    if st.session_state.auth_ok:
+        return  # ya logueado
+
+    st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="login-title">ENTER <span style="font-weight:800;">USERNAME</span> AND <span style="font-weight:800;">PASSWORD</span></div>', unsafe_allow_html=True)
+
+    with st.form("login_form", clear_on_submit=False):
+        u = st.text_input("Username", value=st.session_state.get("__u__", ""), key="__u__")
+        p = st.text_input("Password", type="password", value=st.session_state.get("__p__", ""), key="__p__")
+        ok = st.form_submit_button("Login")
+
+    if ok:
+        user_ok = hmac.compare_digest((u or "").strip(), (ADMIN_USER or "").strip())
+        pass_ok = hmac.compare_digest((p or "").strip(), (APP_PASSWORD or "").strip())
+        if user_ok and pass_ok:
+            st.session_state.auth_ok = True
+            st.session_state.auth_err = False
+            st.session_state.current_user = u or ADMIN_USER
+            st.rerun()
+        else:
+            st.session_state.auth_ok = False
+            st.session_state.auth_err = True
+
+    if st.session_state.auth_err and not st.session_state.auth_ok:
+        st.error("Invalid credentials. Try again.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()  # 🔒 bloquea el resto de la app hasta loguear
+
+
+# 🔐 Mostrar login si hace falta
+login_gate()
 
 # ------------------ CONFIG ------------------
 API_KEY = st.secrets.get("OPENAI_OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
