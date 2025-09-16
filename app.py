@@ -70,8 +70,9 @@ def login_gate():
     if "auth_err" not in st.session_state:
         st.session_state.auth_err = False
 
+    # Si ya está logueado, no bloqueamos
     if st.session_state.auth_ok:
-        return  # ya logueado
+        return
 
     # UI minimal sin rectángulos ni íconos
     st.markdown('<div class="login-wrap">', unsafe_allow_html=True)
@@ -98,7 +99,11 @@ def login_gate():
         st.error("Invalid credentials. Try again.")
 
     st.markdown("</div>", unsafe_allow_html=True)
-    st.stop()  # 🔒 bloquea el resto de la app hasta loguear
+
+    # 🔒 aquí sí bloquea si no logueaste
+    if not st.session_state.auth_ok:
+        st.stop()
+
 
 
 # Mostrar login si hace falta
